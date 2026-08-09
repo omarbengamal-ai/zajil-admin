@@ -887,7 +887,7 @@ class _DS extends State<DashboardScreen> {
         const SizedBox(width: 20),
         SizedBox(height: 280, child: Expanded(child: PlainCard(title: 'Total customers',
             child: Column(children: [
-              Row(mainAxisAlignment: MainAxisAlignment.end, children: const [
+                 Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                 _lg(Color(0xFF9B86E4), '2021'), _lg(Color(0xFFC4B8F0), '2020'), _lg(Color(0xFF3F2B96), '2019'),
               ]),
             ])))),
