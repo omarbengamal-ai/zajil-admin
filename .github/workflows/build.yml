@@ -19,6 +19,13 @@ jobs:
         run: |
           flutter pub get
           flutter build windows --release
+      - name: Show sherpa_onnx API
+        if: failure()
+        shell: pwsh
+        run: |
+          $d = (Get-ChildItem "$env:LOCALAPPDATA\Pub\Cache\hosted\pub.dev" -Directory -Filter "sherpa_onnx-*" | Select-Object -First 1).FullName
+          Write-Output "PACKAGE: $d"
+          Get-ChildItem "$d\lib" -Recurse -Filter "*.dart" | Select-String -Pattern "class OfflineRecognizer|class OfflineModelConfig|class OfflineWhisper|class OfflineStream|acceptWaveform|inputFinished|decode\(|getResult" -Context 0,6 | ForEach-Object { $_.ToString() }
       - uses: actions/upload-artifact@v4
         with:
           name: ZajilAdmin-Windows
