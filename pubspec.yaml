@@ -1,13 +1,13 @@
 name: zajil_admin
 publish_to: 'none'
 version: 2.0.0+1
+
 environment:
   sdk: '>=3.0.0 <4.0.0'
+
 dependencies:
   flutter:
-   uses-material-design: true
-   assets:
-    - logo.png
+    sdk: flutter
   fl_chart: ^0.68.0
   hive: ^2.2.3
   hive_flutter: ^1.1.0
@@ -17,5 +17,8 @@ dependencies:
   http: ^1.2.2
   sherpa_onnx: ^1.9.0
   file_picker: ^8.1.4
+
 flutter:
   uses-material-design: true
+  assets:
+    - logo.png
