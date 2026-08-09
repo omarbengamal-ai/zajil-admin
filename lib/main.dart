@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'zajil.dart';
+import 'core.dart';
+import 'screens.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -10,5 +11,5 @@ Future<void> main() async {
   runZonedGuarded(() {
     FlutterError.onError = (d) => debugPrint('ERR: ${d.exception}');
     runApp(const ZajilApp());
-  }, (e, st) => debugPrint('ZONE ERR: $e')); // بيمنع البرنامج يقفل عند أي خطأ
+  }, (e, st) => debugPrint('ZONE ERR: $e'));
 }
