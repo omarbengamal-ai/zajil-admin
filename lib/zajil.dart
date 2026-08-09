@@ -205,8 +205,9 @@ class STT {
     if (_rec != null) return;
     final dir = await _dir(onP);
     onP('تجهيز المحرك...');
-    _rec = sherpa.OfflineRecognizer(sherpa.OfflineRecognizerConfig(
-        modelConfig: sherpa.OfflineModelConfig(tokens: '$dir/tokens.txt', numThreads: 2,
+      _rec = sherpa.OfflineRecognizer(sherpa.OfflineRecognizerConfig(
+        feat: sherpa.FeatureConfig(sampleRate: 16000, featureDim: 80),
+        model: sherpa.OfflineModelConfig(tokens: '$dir/tokens.txt', numThreads: 2,
             whisper: sherpa.OfflineWhisperModelConfig(encoder: '$dir/encoder.onnx',
                 decoder: '$dir/decoder.onnx', language: 'ar', task: 'transcribe'))));
   }
