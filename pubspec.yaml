@@ -16,3 +16,4 @@ dependencies:
   sherpa_onnx: ^1.9.0
 flutter:
   uses-material-design: true
+  file_picker: ^8.1.4
