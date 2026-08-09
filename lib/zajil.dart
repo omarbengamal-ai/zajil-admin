@@ -206,7 +206,6 @@ class STT {
     final dir = await _dir(onP);
     onP('تجهيز المحرك...');
     _rec = sherpa.OfflineRecognizer(sherpa.OfflineRecognizerConfig(
-        featConfig: sherpa.FeatureConfig(sampleRate: 16000, featureDim: 80),
         modelConfig: sherpa.OfflineModelConfig(tokens: '$dir/tokens.txt', numThreads: 2,
             whisper: sherpa.OfflineWhisperModelConfig(encoder: '$dir/encoder.onnx',
                 decoder: '$dir/decoder.onnx', language: 'ar', task: 'transcribe'))));
@@ -235,7 +234,6 @@ class STT {
     }
     final st = _rec!.createStream();
     st.acceptWaveform(samples: s, sampleRate: 16000);
-    st.inputFinished();
     _rec!.decode(st);
     return _rec!.getResult(st).text.trim();
   }
@@ -339,7 +337,7 @@ class CustomersLineChart extends StatelessWidget {
   Widget build(BuildContext context) => LineChart(LineChartData(
       minX: 0, maxX: 11, minY: 0, maxY: 80,
       gridData: FlGridData(show: true, drawVerticalLine: false,
-          getDrawingHorizontalLine: (_) => BorderSide(color: T.border.withOpacity(.6))),
+                    getDrawingHorizontalLine: (_) => FlLine(color: T.border.withOpacity(.6), strokeWidth: 1)),
       borderData: FlBorderData(show: false),
       titlesData: FlTitlesData(
         rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -616,7 +614,7 @@ class _ODS extends State<_OrderDialog> {
   late final TextEditingController totalC = TextEditingController(text: widget.existing == null ? '' : widget.existing!.total.toStringAsFixed(0));
   final TextEditingController noteC = TextEditingController();
   late OS status = widget.existing?.status ?? OS.inProgress;
-  String? audioId = (widget.existing?.audio.isNotEmpty ?? false) ? widget.existing!.audio : null;
+  late String? audioId = (widget.existing?.audio.isNotEmpty ?? false) ? widget.existing!.audio : null;
   bool rec = false, busy = false;
   int sec = 0;
   int timer = 0;
@@ -892,7 +890,6 @@ class _DS extends State<DashboardScreen> {
               Row(mainAxisAlignment: MainAxisAlignment.end, children: const [
                 _lg(Color(0xFF9B86E4), '2021'), _lg(Color(0xFFC4B8F0), '2020'), _lg(Color(0xFF3F2B96), '2019'),
               ]),
-              const Expanded(child: CustomersLineChart()),
             ])))),
       ]),
       const SizedBox(height: 20),
