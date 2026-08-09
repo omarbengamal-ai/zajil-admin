@@ -1,0 +1,18 @@
+name: zajil_admin
+publish_to: 'none'
+version: 2.0.0+1
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+dependencies:
+  flutter:
+    sdk: flutter
+  fl_chart: ^0.68.0
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  record: ^5.1.2
+  audioplayers: ^6.0.0
+  path_provider: ^2.1.3
+  http: ^1.2.2
+  sherpa_onnx: ^1.9.0
+flutter:
+  uses-material-design: true
