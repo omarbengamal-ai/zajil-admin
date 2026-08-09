@@ -458,4 +458,361 @@ class OTable extends StatelessWidget {
           Expanded(flex: 2, child: Text(o.to, style: TextStyle(fontSize: 12, color: T.text))),
           Expanded(flex: 2, child: Text(o.driver, style: TextStyle(fontSize: 12, color: T.text))),
           Expanded(flex: 2, child: Text(o.date, style: TextStyle(fontSize: 12, color: T.text))),
-          Expanded(flex: 2, child: Text('${o.total.toStringAsFixed(0)} EGP', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: T.text
+          Expanded(flex: 2, child: Text('${o.total.toStringAsFixed(0)} EGP', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: T.text))),
+          SizedBox(width: 110, child: Row(children: [
+            if (o.audio.isNotEmpty) ValueListenableBuilder<String?>(valueListenable: Audio_.playing, builder: (_, p, __) => IconButton(onPressed: () => Audio_.toggle(o.audio), icon: Icon(p == o.audio ? Icons.stop_circle_outlined : Icons.volume_up, size: 18, color: p == o.audio ? T.red : T.primary))),
+            IconButton(onPressed: () => del?.call(o), icon: Icon(Icons.delete_outline, size: 17, color: T.grey)),
+            if (edit) IconButton(onPressed: () => edt?.call(o), icon: Icon(Icons.mode_edit_outline, size: 16, color: T.grey)),
+          ])),
+        ]));
+  }
+}
+
+class Sidebar extends StatelessWidget {
+  final int sel; final ValueChanged<int> on; final Widget? extra; final VoidCallback onLogout;
+  const Sidebar({super.key, required this.sel, required this.on, required this.onLogout, this.extra});
+  static const it = [
+    ['Dashboard', Icons.bar_chart, 0], ['Drivers', Icons.layers, 1], ['Orders', Icons.fact_check_outlined, 2],
+    ['Statics', Icons.flag_outlined, 3], ['Settings', Icons.settings, 4],
+  ];
+  @override
+  Widget build(BuildContext context) => Container(width: 220, padding: const EdgeInsets.fromLTRB(14, 20, 14, 12),
+      child: Column(children: [
+        const Row(mainAxisAlignment: MainAxisAlignment.center, children: [ZajilLogo(size: 64)]),
+        const SizedBox(height: 16),
+        for (final x in it)
+          Container(margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(color: sel == x[2] as int ? T.primary : T.card, borderRadius: BorderRadius.circular(10), border: Border.all(color: sel == x[2] as int ? T.primary : T.border),
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(T.dark ? .3 : .05), blurRadius: 4, offset: const Offset(0, 2))]),
+              child: InkWell(borderRadius: BorderRadius.circular(10), onTap: () => on(x[2] as int),
+                  child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+                      child: Row(children: [
+                        Icon(x[1] as IconData, size: 18, color: sel == x[2] as int ? Colors.white : T.grey),
+                        const SizedBox(width: 10),
+                        Text(x[0] as String, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: sel == x[2] as int ? Colors.white : T.text)),
+                      ])))),
+        const Spacer(),
+        if (extra != null) extra!,
+        Divider(color: T.border),
+        Row(children: [
+          const CircleAvatar(radius: 15, backgroundColor: Color(0xFFE4D9F7), child: Icon(Icons.person, size: 18, color: T.primary)),
+          const SizedBox(width: 8),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Saleh', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: T.text)),
+            Text('Saleh@admin.com', style: TextStyle(fontSize: 10, color: T.grey)),
+          ])),
+          IconButton(onPressed: onLogout, icon: Icon(Icons.logout, size: 18, color: T.grey)),
+        ]),
+      ]));
+}
+
+Future<bool> confirm(BuildContext c, String m) async =>
+    (await showDialog<bool>(context: c, builder: (c2) => AlertDialog(
+        title: const Text('تأكيد'), content: Text(m),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c2, false), child: const Text('لا')),
+          ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: T.primary), onPressed: () => Navigator.pop(c2, true), child: const Text('أيوة')),
+        ]))) ?? false;
+
+/* ===== حوار الأوردر (مايك محمي) ===== */
+Future<void> showOrderDialog(BuildContext context, [Order? existing]) => showDialog(context: context, builder: (_) => _OrderDialog(existing: existing));
+
+class _OrderDialog extends StatefulWidget {
+  final Order? existing;
+  const _OrderDialog({this.existing});
+  @override
+  State<_OrderDialog> createState() => _ODS();
+}
+class _ODS extends State<_OrderDialog> {
+  late final TextEditingController customerC = TextEditingController(text: widget.existing?.customer);
+  late final TextEditingController fromC = TextEditingController(text: widget.existing?.from);
+  late final TextEditingController toC = TextEditingController(text: widget.existing?.to);
+  late final TextEditingController driverC = TextEditingController(text: widget.existing?.driver);
+  late final TextEditingController totalC = TextEditingController(text: widget.existing == null ? '' : widget.existing!.total.toStringAsFixed(0));
+  final TextEditingController noteC = TextEditingController();
+  late OS status = widget.existing?.status ?? OS.inProgress;
+  late String? audioId = (widget.existing?.audio.isNotEmpty ?? false) ? widget.existing!.audio : null;
+  bool rec = false, busy = false;
+  int sec = 0;
+
+  Future<void> toggleMic() async {
+    try {
+      if (!rec) {
+        final p = await Audio_.start();
+        if (p == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('اسمح للبرنامج يستخدم المايك من إعدادات ويندوز → Privacy → Microphone'))); return; }
+        audioId = p;
+        setState(() { rec = true; sec = 0; });
+        Future.doWhile(() async {
+          if (!rec || !mounted) return false;
+          await Future.delayed(const Duration(seconds: 1));
+          if (mounted) setState(() => sec++);
+          return rec;
+        });
+      } else {
+        setState(() { rec = false, busy = true });
+        final p = await Audio_.stop();
+        if (p != null) audioId = p;
+        final text = await STT.run(File(audioId!));
+        if (mounted) {
+          noteC.text = text;
+          final cust = RegExp(r'(?:للعميل|عميل|customer)\s*[:：]?\s*(.+?)(?=\s+(?:من|الى|إلى|from|to)\b|\s*$)', caseSensitive: false).firstMatch(text);
+          final fr = RegExp(r'(?:من|from)\s*[:：]?\s*(.+?)(?=\s+(?:الى|إلى|to|for)\b|\s*$)', caseSensitive: false).firstMatch(text);
+          final t2 = RegExp(r'(?:الى|إلى|to|for)\s*[:：]?\s*(.+?)(?=\s+(?:من|from)\b|\s*$)', caseSensitive: false).firstMatch(text);
+          setState(() {
+            if (cust?.group(1) != null) customerC.text = cust!.group(1)!.trim();
+            if (fr?.group(1) != null) fromC.text = fr!.group(1)!.trim();
+            if (t2?.group(1) != null) toC.text = t2!.group(1)!.trim();
+          });
+          if (text.isEmpty) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('معرفناش نلتقط كلام واضح — قرّب من المايك')));
+        }
+      }
+    } catch (e) {
+      if (mounted) { setState(() { rec = false; busy = false; }); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('مشكلة في المايك/التفريغ: $e'))); }
+    } finally { if (mounted) setState(() => busy = false); }
+  }
+
+  void save() {
+    Store.putOrder(Order(
+        id: widget.existing?.id ?? 'o${DateTime.now().millisecondsSinceEpoch}',
+        customer: customerC.text.isEmpty ? 'New Customer' : customerC.text,
+        status: status, from: fromC.text, to: toC.text,
+        driver: driverC.text.isEmpty ? 'None' : driverC.text,
+        date: widget.existing?.date ?? '12:15 AM',
+        day: (widget.existing?.day.isEmpty ?? true) ? Store.today() : widget.existing!.day,
+        audio: audioId ?? '', total: double.tryParse(totalC.text) ?? 0));
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+      title: Text(widget.existing == null ? 'Add New Order' : 'Edit Order'),
+      content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4), decoration: BoxDecoration(color: const Color(0xFFF4F1FC).withOpacity(T.dark ? .1 : 1), borderRadius: BorderRadius.circular(8)),
+            child: Row(children: [
+              busy ? const Padding(padding: EdgeInsets.all(8), child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: T.primary)))
+                  : IconButton(onPressed: toggleMic, tooltip: 'اتكلّم وهو يملّي الأوردر', icon: Icon(rec ? Icons.stop_circle : Icons.mic, color: rec ? T.red : T.primary)),
+              Expanded(child: Text(rec ? 'جارٍ التسجيل.. ${sec ~/ 60}:${(sec % 60).toString().padLeft(2, '0')} ⏺' : busy ? 'بنفرّغ الكلام ✍️' : 'دوس المايك وقول: عميل حسن من مطعم الشرق الى مدينة نصر', style: const TextStyle(fontSize: 11))),
+              if (audioId != null) IconButton(icon: const Icon(Icons.play_arrow, size: 20, color: T.primary), onPressed: () => Audio_.toggle(audioId!)),
+            ])),
+        const SizedBox(height: 10),
+        TextField(controller: noteC, maxLines: 2, decoration: const InputDecoration(labelText: 'النص المتعرّف عليه')),
+        const SizedBox(height: 10),
+        TextField(controller: customerC, decoration: const InputDecoration(labelText: 'Customer')),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: TextField(controller: fromC, decoration: const InputDecoration(labelText: 'From'))),
+          const SizedBox(width: 10),
+          Expanded(child: TextField(controller: toC, decoration: const InputDecoration(labelText: 'To'))),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: TextField(controller: driverC, decoration: const InputDecoration(labelText: 'Driver'))),
+          const SizedBox(width: 10),
+          Expanded(child: TextField(controller: totalC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Total (EGP)'))),
+        ]),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<OS>(value: status, items: [for (final s in OS.values) DropdownMenuItem(value: s, child: Text(s.label))], onChanged: (v) => setState(() => status = v!)),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: T.primary), onPressed: save, child: const Text('Save')),
+      ]);
+}
+
+Future<void> showDriverDialog(BuildContext context) {
+  final name = TextEditingController(), phone = TextEditingController(), nid = TextEditingController();
+  final pct = TextEditingController(text: Store.settings()['companyPercentage'] as String? ?? '15');
+  int rate = 5;
+  return showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setSt) => AlertDialog(
+      title: const Text('Add New Driver'),
+      content: SizedBox(width: 380, child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: name, decoration: const InputDecoration(labelText: 'Name')),
+        const SizedBox(height: 10),
+        TextField(controller: phone, decoration: const InputDecoration(labelText: 'Phone')),
+        const SizedBox(height: 10),
+        TextField(controller: nid, decoration: const InputDecoration(labelText: 'National ID')),
+        const SizedBox(height: 10),
+        TextField(controller: pct, decoration: const InputDecoration(labelText: 'Company % (نسبة الشركة)')),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<int>(value: rate, items: [for (int i = 1; i <= 5; i++) DropdownMenuItem(value: i, child: Text('$i ★'))], onChanged: (v) => setSt(() => rate = v!)),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+        ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: T.primary), onPressed: () {
+          final id = 'd${DateTime.now().millisecondsSinceEpoch}';
+          Store.putDriver(Driver(id: id, name: name.text.isEmpty ? 'NEW DRIVER' : name.text, phone: phone.text, nid: nid.text, start: Store.today(), rate: rate, active: true, shiftOpen: true, percentage: double.tryParse(pct.text) ?? 15));
+          Navigator.pop(ctx);
+        }, child: const Text('Save')),
+      ])));
+}
+
+/* ===== الشاشات ===== */
+class LoginScreen extends StatefulWidget {
+  final VoidCallback onLogin;
+  const LoginScreen({super.key, required this.onLogin});
+  @override
+  State<LoginScreen> createState() => _LS();
+}
+class _LS extends State<LoginScreen> {
+  final _n = TextEditingController(), _p = TextEditingController();
+  void go() {
+    if (_n.text.isEmpty || _p.text.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter your name and password'))); return; }
+    Store.saveSettings(Store.settings()..['adminName'] = _n.text);
+    widget.onLogin();
+  }
+  @override
+  Widget build(BuildContext context) => Scaffold(body: Center(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+    Enter(child: SizedBox(width: 380, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text('Log in', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
+      const SizedBox(height: 24),
+      const Text('Name*', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 6),
+      TextField(controller: _n, decoration: const InputDecoration(hintText: 'Enter your name')),
+      const SizedBox(height: 16),
+      const Text('Password*', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 6),
+      TextField(controller: _p, obscureText: true, decoration: const InputDecoration(hintText: 'Create a password')),
+      const SizedBox(height: 24),
+      SizedBox(width: double.infinity, height: 44, child: ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: T.primary, elevation: 4, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+          onPressed: go, child: const Text('Log in', style: TextStyle(color: Colors.white)))),
+    ]))),
+    const SizedBox(width: 90),
+    const Enter(ms: 150, child: ZajilLogo(size: 260)),
+  ])));
+}
+
+class MainShell extends StatefulWidget {
+  final VoidCallback onLogout; final VoidCallback onToggleDark;
+  const MainShell({super.key, required this.onLogout, required this.onToggleDark});
+  @override
+  State<MainShell> createState() => _MS();
+}
+class _MS extends State<MainShell> {
+  int page = 0; String? profileId;
+  static const titles = ['Dashboard', 'Drivers', 'Orders', 'Statics', 'Settings'];
+  @override
+  Widget build(BuildContext context) => Scaffold(body: Column(children: [
+    Container(height: 64, color: T.primary, child: Stack(children: [
+      Center(child: Text(page == 5 ? 'Profile' : titles[page], style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800))),
+      Align(alignment: Alignment.centerRight, child: IconButton(
+          tooltip: 'دارك مود', onPressed: widget.onToggleDark,
+          icon: Icon(T.dark ? Icons.light_mode : Icons.dark_mode, color: Colors.white))),
+    ])),
+    Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Sidebar(sel: page > 4 ? 1 : page, on: (i) => setState(() => page = i), onLogout: widget.onLogout, extra: (page == 1 || page == 2) ? _ring() : null),
+      Expanded(child: AnimatedSwitcher(duration: const Duration(milliseconds: 280),
+          transitionBuilder: (c, a) => FadeTransition(opacity: a, child: SlideTransition(position: Tween<Offset>(begin: const Offset(.03, 0), end: Offset.zero).animate(a), child: c)),
+          child: Container(key: ValueKey(page), child: _content()))),
+    ])),
+  ]));
+  Widget _ring() => Padding(padding: const EdgeInsets.only(bottom: 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    Row(children: [Expanded(child: Text(page == 1 ? 'Active now' : 'Orders Delivering Now', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: T.text))), Icon(Icons.more_vert, size: 14, color: T.grey)]),
+    const SizedBox(height: 12),
+    const Center(child: Rings('25', size: 150)),
+  ]));
+  Widget _content() {
+    switch (page) {
+      case 0: return const DashboardScreen();
+      case 1: return DriversScreen(onProfile: (id) => setState(() { profileId = id; page = 5; }));
+      case 2: return const OrdersScreen();
+      case 3: return const StaticsScreen();
+      case 4: return const SettingsScreen();
+      default: return DriverProfileScreen(id: profileId ?? '', onBack: () => setState(() => page = 1));
+    }
+  }
+}
+
+class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({super.key});
+  @override
+  State<DashboardScreen> createState() => _DS();
+}
+class _DS extends State<DashboardScreen> {
+  String q = ''; final Set<String> sel = {};
+  @override
+  Widget build(BuildContext context) {
+    final os = Store.orders().where((o) => o.customer.toLowerCase().contains(q.toLowerCase())).toList();
+    final t = Store.today(); final all = Store.orders();
+    final inProg = all.where((o) => o.status == OS.inProgress || o.status == OS.onTheRoad).length;
+    final profit = Store.settl().fold<double>(0, (a, e) => a + e.company);
+    final cards = [
+      const StatCard(title: 'Total customers', value: '3000', delta: '40%'),
+      StatCard(title: 'Orders Today', value: '${all.where((o) => o.day == t).length}', delta: '10%', up: false),
+      StatCard(title: 'in progress now', value: '$inProg', sc: const Color(0xFFDDEEDF)),
+      const StatCard(title: 'Last Hour', value: '0', delta: '40%'),
+      const StatCard(title: 'yesterday', value: '1,210', delta: '10%', up: false),
+      const StatCard(title: 'this Week', value: '316', sc: Color(0xFFD64545), up: false),
+      StatCard(title: 'Company Profit', value: profit.toStringAsFixed(0), delta: '40%'),
+      StatCard(title: 'Active Drivers', value: '${Store.drivers().where((d) => d.active).length}', sc: const Color(0xFFE4F3E6)),
+    ];
+    return SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(children: [
+      Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Enter(child: SizedBox(width: 330, height: 280, child: PlainCard(title: 'Active now', child: Center(child: Rings('$inProg', size: 210))))),
+        const SizedBox(width: 20),
+        Enter(ms: 100, child: SizedBox(height: 280, child: Expanded(child: PlainCard(title: 'Total customers', child: Column(children: [
+          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            _lg(const Color(0xFF9B86E4), '2021'), _lg(const Color(0xFFC4B8F0), '2020'), _lg(const Color(0xFF3F2B96), '2019'),
+          ]),
+          const Expanded(child: CustomersLineChart()),
+        ]))))),
+      ]),
+      const SizedBox(height: 20),
+      GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 1.9),
+          itemCount: cards.length, itemBuilder: (_, i) => Enter(ms: i * 60, child: cards[i])),
+      const SizedBox(height: 16),
+      Row(children: [const Spacer(), ElevatedButton.icon(
+          style: ElevatedButton.styleFrom(backgroundColor: T.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+          onPressed: () async { await showOrderDialog(context); setState(() {}); },
+          icon: const Icon(Icons.add, size: 16), label: const Text('Add New Order'))]),
+      const SizedBox(height: 14),
+      Row(children: [const Spacer(), SizedBox(width: 260, child: TextField(onChanged: (v) => setState(() => q = v), decoration: const InputDecoration(prefixIcon: Icon(Icons.search, size: 18), hintText: 'Search')))]),
+      const SizedBox(height: 14),
+      Enter(ms: 120, child: OTable(list: os, sel: sel,
+          tog: (o) => setState(() => sel.contains(o.id) ? sel.remove(o.id) : sel.add(o.id)),
+          del: (o) => setState(() => Store.delOrder(o.id)))),
+    ]));
+  }
+  static Widget _lg(Color c, String t) => Padding(padding: const EdgeInsets.only(left: 12), child: Row(children: [
+    Container(width: 8, height: 8, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
+    const SizedBox(width: 4), Text(t, style: TextStyle(fontSize: 11, color: T.grey)),
+  ]));
+}
+
+class DriversScreen extends StatelessWidget {
+  final void Function(String)? onProfile;
+  const DriversScreen({super.key, this.onProfile});
+  @override
+  Widget build(BuildContext context) {
+    final ds = Store.drivers();
+    final act = ds.where((d) => d.shiftOpen).toList();
+    final off = ds.where((d) => !d.shiftOpen).toList();
+    return SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(children: [
+      Row(children: [
+        ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: T.red, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            icon: const Icon(Icons.lock_clock, size: 16), label: const Text('Close All Shifts'),
+            onPressed: () async {
+              if (!await confirm(context, 'قفل كل الشيفتات دلوقتي؟')) return;
+              final r = Store.closeAll(); final co = r.fold<double>(0, (a, e) => a + e.company);
+              if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تم قفل ${r.length} شيفت — حصة الشركة: ${co.toStringAsFixed(0)} EGP')));
+            }),
+        const Spacer(),
+        ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: T.primary, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            icon: const Icon(Icons.add, size: 16), label: const Text('Add New Driver'),
+            onPressed: () async { await showDriverDialog(context); }),
+      ]),
+      const SizedBox(height: 16),
+      Center(child: Text('ACTIVE ⚡', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: T.text))),
+      const SizedBox(height: 20),
+      act.isEmpty ? const Empty('مفيش مندوبين لسه — ضيف أول مندوب من Add New Driver') :
+      GridView.builder(shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 4, crossAxisSpacing: 20, mainAxisSpacing: 20, childAspectRatio: 0.78),
+          itemCount: act.length,
+          itemBuilder: (_, i) => Enter(ms: i * 70, child: DriverCard(d: act[i],
+              open: () => onProfile?.call(act[i].id),
+              close: () async {
+                final d = act[i];
+                if (!await confirm(context, 'قفل شيفت ${d.name}؟\nالإجمالي: ${Store.todayTotal(d).toStringAsFixed(0)} EGP\nحصة الشركة ${d.percentage.toStringAsFixed(0)}% والباقي للمندوب')) return;
+                final st = Store.closeShift(d);
+                if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('شركة ${st.company.toStringAsFixed(0)} — مندوب
