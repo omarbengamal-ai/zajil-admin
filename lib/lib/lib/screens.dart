@@ -6,6 +6,7 @@ import 'core.dart';
 import 'widgets.dart';
 
 /* ===== تسجيل الدخول ===== */
+/* ===== تسجيل الدخول (لوجو زاجل + خلفية موف) ===== */
 class LoginScreen extends StatefulWidget {
   final VoidCallback onLogin;
   const LoginScreen({super.key, required this.onLogin});
@@ -20,27 +21,31 @@ class _LS extends State<LoginScreen> {
     widget.onLogin();
   }
   @override
-  Widget build(BuildContext context) => Scaffold(body: Center(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-    Enter(child: SizedBox(width: 380, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text('Log in', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800)),
-      const SizedBox(height: 24),
-      const Text('Name*', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-      const SizedBox(height: 6),
-      TextField(controller: _n, decoration: const InputDecoration(hintText: 'Enter your name')),
-      const SizedBox(height: 16),
-      const Text('Password*', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-      const SizedBox(height: 6),
-      TextField(controller: _p, obscureText: true, decoration: const InputDecoration(hintText: 'Create a password')),
-      const SizedBox(height: 24),
-      SizedBox(width: double.infinity, height: 44, child: ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: T.primary, elevation: 4, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-          onPressed: go, child: const Text('Log in', style: TextStyle(color: Colors.white)))),
-    ]))),
-    const SizedBox(width: 90),
-    const Enter(ms: 150, child: ZajilLogo(size: 260)),
-  ])));
+  Widget build(BuildContext context) => Scaffold(
+      backgroundColor: const Color(0xFF5B1283), // نفس درجة الموف بتاعة اللوجو
+      body: Center(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Enter(child: SizedBox(width: 380, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Log in', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800, color: Colors.white)),
+          const SizedBox(height: 8),
+          const Text('زاجل — سرعة .. تسليم .. دقة', style: TextStyle(fontSize: 13, color: Colors.white70)),
+          const SizedBox(height: 24),
+          const Text('Name*', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+          const SizedBox(height: 6),
+          TextField(controller: _n, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(hintText: 'Enter your name')),
+          const SizedBox(height: 16),
+          const Text('Password*', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.white)),
+          const SizedBox(height: 6),
+          TextField(controller: _p, obscureText: true, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(hintText: 'Create a password')),
+          const SizedBox(height: 26),
+          SizedBox(width: double.infinity, height: 46, child: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: T.yellow, foregroundColor: const Color(0xFF3E0B5C),
+                  elevation: 6, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+              onPressed: go, child: const Text('Log in', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)))),
+        ]))),
+        const SizedBox(width: 70),
+        Enter(ms: 150, child: Image.asset('logo.png', width: 360, height: 360, fit: BoxFit.contain)),
+      ])));
 }
-
 /* ===== الهيكل الرئيسي (هيدر + سايدبار + انتقالات) ===== */
 class MainShell extends StatefulWidget {
   final VoidCallback onLogout; final VoidCallback onToggleDark;
