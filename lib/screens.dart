@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:http/http.dart' as http;
+import 'package:sherpa_onnx/sherpa_onnx.dart';
 
 // Existing login screen kept above dashboard in this file
 class LoginScreen extends StatefulWidget {
@@ -191,6 +193,8 @@ class _LoginScreenState extends State<LoginScreen> {
 // Dashboard: redesigned to dark, modern style
 // Includes button to add new order (speech-to-text or manual)
 // Orders can be assigned to drivers that have profiles
+// This file now includes basic sherpa_onnx integration for offline STT.
+// You must provide sherpa-onnx model files in app documents/models/ or allow the app to download them.
 // --------------------------------------------------
 
 class DashboardScreen extends StatefulWidget {
@@ -206,6 +210,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? _recordedFilePath;
   String _transcription = '';
 
+  SherpaOnnxRecognize? _transcriber; // note: class name depends on package API; adjust if necessary
+
   List<Map<String, dynamic>> drivers = [
     {'id': 'd1', 'name': 'أحمد محمد', 'avatar': 'https://i.pravatar.cc/150?img=5', 'hasProfile': true},
     {'id': 'd2', 'name': 'سامي علي', 'avatar': 'https://i.pravatar.cc/150?img=6', 'hasProfile': true},
@@ -214,29 +220,149 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   List<Map<String, dynamic>> orders = [];
 
+  // Expected model filenames inside app documents/models/
+  final List<String> _requiredModelFiles = [
+    'encoder.onnx',
+    'decoder.onnx',
+    'joiner.onnx',
+    'tokens.txt',
+  ];
+
+  // Placeholder URLs for model download guidance.
+  // Replace with official sherpa-onnx model URLs or host your own copies.
+  final Map<String, String> _modelDownloadUrls = {
+    'encoder.onnx': 'https://example.com/models/encoder.onnx',
+    'decoder.onnx': 'https://example.com/models/decoder.onnx',
+    'joiner.onnx': 'https://example.com/models/joiner.onnx',
+    'tokens.txt': 'https://example.com/models/tokens.txt',
+  };
+
+  Future<Directory> _modelsDir() async {
+    final dir = await getApplicationDocumentsDirectory();
+    final models = Directory('${dir.path}/models');
+    if (!await models.exists()) await models.create(recursive: true);
+    return models;
+  }
+
+  Future<bool> _modelsExist() async {
+    final models = await _modelsDir();
+    for (final f in _requiredModelFiles) {
+      if (!await File('${models.path}/$f').exists()) return false;
+    }
+    return true;
+  }
+
+  Future<void> _downloadModels(BuildContext context) async {
+    final models = await _modelsDir();
+    for (final f in _requiredModelFiles) {
+      final url = _modelDownloadUrls[f];
+      if (url == null) continue;
+      final localPath = '${models.path}/$f';
+      final file = File(localPath);
+      if (await file.exists()) continue;
+      final resp = await http.get(Uri.parse(url));
+      if (resp.statusCode == 200) {
+        await file.writeAsBytes(resp.bodyBytes);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('فشل تحميل $f من $url')));
+      }
+    }
+  }
+
+  Future<void> _initTranscriberIfReady(BuildContext context) async {
+    if (_transcriber != null) return;
+    final ok = await _modelsExist();
+    if (!ok) {
+      // Prompt user to download models or place them manually
+      final shouldDownload = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+          title: const Text('نماذج صعبة'),
+          content: const Text('نماذج Sherpa-ONNX غير موجودة. هل تريد تنزيلها الآن (الحجم قد يكون كبيرًا)؟'),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(c).pop(false), child: const Text('لا')),
+            TextButton(onPressed: () => Navigator.of(c).pop(true), child: const Text('نعم')),
+          ],
+        ),
+      );
+
+      if (shouldDownload == true) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تنزيل النماذج قد يستغرق وقتًا...')));
+        await _downloadModels(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ضع نماذج sherpa-onnx في مجلد documents/models')));
+        return;
+      }
+    }
+
+    // If models are present, initialize transcriber
+    final models = await _modelsDir();
+    final encoder = '${models.path}/encoder.onnx';
+    final decoder = '${models.path}/decoder.onnx';
+    final joiner = '${models.path}/joiner.onnx';
+    final tokens = '${models.path}/tokens.txt';
+
+    try {
+      // The exact constructor / API depends on sherpa_onnx package version.
+      // Below is a generic example — adjust if the package uses different names.
+      _transcriber = SherpaOnnxRecognize(
+        encoderModelPath: encoder,
+        decoderModelPath: decoder,
+        joinerModelPath: joiner,
+        tokensPath: tokens,
+      );
+    } catch (e) {
+      // If the package uses a different API, you'll need to adapt here.
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('فشل تهيئة Sherpa: $e')));
+    }
+  }
+
   Future<void> _startRecording() async {
     if (await _recorder.hasPermission()) {
       final dir = await getTemporaryDirectory();
-      final filePath = '${dir.path}/zajil_rec_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      await _recorder.start(path: filePath, encoder: AudioEncoder.aacLc);
+      final filePath = '${dir.path}/zajil_rec_${DateTime.now().millisecondsSinceEpoch}.wav';
+      // Record as PCM16 WAV at 16 kHz if supported
+      await _recorder.start(path: filePath, encoder: AudioEncoder.pcm16, bitRate: 16000, samplingRate: 16000);
       setState(() {
         _isRecording = true;
         _recordedFilePath = null;
         _transcription = '';
       });
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لا يوجد إذن لتسجيل الصوت')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لا يوجد إذن لتسجيل ��لصوت')));
     }
   }
 
-  Future<void> _stopRecording() async {
+  Future<void> _stopRecording(BuildContext context) async {
     final path = await _recorder.stop();
     setState(() {
       _isRecording = false;
       _recordedFilePath = path;
-      // Placeholder: in a real app you'd send file to speech->text engine
-      _transcription = 'نص مُحوّل تجريبي من ملف الصوت (حرّره إن أردت)';
+      _transcription = '';
     });
+
+    if (path != null) {
+      // Ensure transcriber ready
+      await _initTranscriberIfReady(context);
+      if (_transcriber == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('المحوّل غير جاهز. تأكد من وجود النماذج')));
+        return;
+      }
+
+      // Read file bytes and send to transcriber
+      try {
+        final bytes = await File(path).readAsBytes();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('جاري تحويل الكلام إلى نص...')));
+
+        // The exact API varies. Here we assume a method `transcribe` that accepts bytes and sampleRate.
+        final result = await _transcriber!.transcribe(bytes, sampleRate: 16000);
+        setState(() {
+          _transcription = result.text ?? '';
+        });
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطأ في التحويل: $e')));
+      }
+    }
   }
 
   void _openAddOrderModal() {
@@ -279,7 +405,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         child: ElevatedButton.icon(
                           onPressed: () async {
                             if (_isRecording) {
-                              await _stopRecording();
+                              await _stopRecording(context);
                             } else {
                               await _startRecording();
                             }
@@ -421,8 +547,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Row(
       children: [
         Expanded(
-          child: _statCard('الإيرادات', '
-30.15K', Colors.pinkAccent),
+          child: _statCard('الإيرادات', '30.15K', Colors.pinkAccent),
         ),
         const SizedBox(width: 12),
         Expanded(child: _statCard('الطلبات', '22.4K', Colors.cyan)),
