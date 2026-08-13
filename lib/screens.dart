@@ -430,7 +430,7 @@ class DashboardScreen extends StatelessWidget {
               ],
               rows: List.generate(5, (index) {
                 return DataRow(cells: [
-                  DataCell(Text('#SKTG"); // placeholder safe fix - avoid syntax errors
+                  DataCell(Text('#SKTG${2340 + index}')),
                   DataCell(Text('24 أكتوبر 2023')),
                   DataCell(Row(children: [
                     CircleAvatar(radius: 12, backgroundImage: NetworkImage('https://i.pravatar.cc/150?img=${index + 5}')),
