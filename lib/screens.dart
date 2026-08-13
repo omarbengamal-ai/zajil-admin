@@ -1,464 +1,484 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart'; // تأكد من إضافة هذه المكتبة في pubspec.yaml
 
-class DashboardScreen extends StatelessWidget {
+// Data model for driver custody
+class DriverCustody {
+  final String driverId;
+  final String driverName;
+  final int activeOrders;
+  final double totalOrdersValue;
+  final double collectedAmount;
+  final double handedOverAmount;
+  final DateTime lastSettlementDate;
+  final List<Settlement> settlements;
+
+  DriverCustody({
+    required this.driverId,
+    required this.driverName,
+    required this.activeOrders,
+    required this.totalOrdersValue,
+    required this.collectedAmount,
+    required this.handedOverAmount,
+    required this.lastSettlementDate,
+    required this.settlements,
+  });
+
+  double get currentCustody => collectedAmount - handedOverAmount;
+
+  CustodyStatus get status {
+    if (currentCustody <= 0) return CustodyStatus.Settled;
+    // simple overdue logic: if last settlement > 30 days ago and custody > 0 => overdue
+    final daysSince = DateTime.now().difference(lastSettlementDate).inDays;
+    if (daysSince > 30 && currentCustody > 0) return CustodyStatus.Overdue;
+    return CustodyStatus.Pending;
+  }
+}
+
+class Settlement {
+  final DateTime date;
+  final double amount;
+  final String note;
+
+  Settlement({required this.date, required this.amount, this.note = ''});
+}
+
+enum CustodyStatus { Settled, Pending, Overdue }
+
+// Mock service to provide driver custody data. Replace with API later.
+class DriverCustodyService {
+  // simulate network delay
+  Future<List<DriverCustody>> fetchDriverCustodies() async {
+    await Future.delayed(const Duration(milliseconds: 800));
+
+    final now = DateTime.now();
+    return [
+      DriverCustody(
+        driverId: 'd1',
+        driverName: 'أحمد محمد',
+        activeOrders: 4,
+        totalOrdersValue: 420.0,
+        collectedAmount: 520.0,
+        handedOverAmount: 200.0,
+        lastSettlementDate: now.subtract(const Duration(days: 5)),
+        settlements: [
+          Settlement(date: now.subtract(const Duration(days: 5)), amount: 200.0, note: 'تحويل بنكي'),
+        ],
+      ),
+      DriverCustody(
+        driverId: 'd2',
+        driverName: 'سليم علي',
+        activeOrders: 2,
+        totalOrdersValue: 150.0,
+        collectedAmount: 150.0,
+        handedOverAmount: 150.0,
+        lastSettlementDate: now.subtract(const Duration(days: 10)),
+        settlements: [
+          Settlement(date: now.subtract(const Duration(days: 10)), amount: 150.0, note: 'نقدي'),
+        ],
+      ),
+      DriverCustody(
+        driverId: 'd3',
+        driverName: 'مريم خالد',
+        activeOrders: 6,
+        totalOrdersValue: 800.0,
+        collectedAmount: 950.0,
+        handedOverAmount: 400.0,
+        lastSettlementDate: now.subtract(const Duration(days: 45)),
+        settlements: [
+          Settlement(date: now.subtract(const Duration(days: 45)), amount: 400.0, note: 'تحويل بنكي'),
+          Settlement(date: now.subtract(const Duration(days: 90)), amount: 300.0, note: 'نقدي'),
+        ],
+      ),
+      DriverCustody(
+        driverId: 'd4',
+        driverName: 'خالد يوسف',
+        activeOrders: 0,
+        totalOrdersValue: 0.0,
+        collectedAmount: 0.0,
+        handedOverAmount: 0.0,
+        lastSettlementDate: now.subtract(const Duration(days: 3)),
+        settlements: [],
+      ),
+    ];
+  }
+}
+
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: TextDirection.rtl, // جعل الاتجاه من اليمين لليسار
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF4F7FE),
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  final DriverCustodyService _service = DriverCustodyService();
+  late Future<List<DriverCustody>> _futureData;
+
+  // UI state
+  List<DriverCustody> _drivers = [];
+  String _search = '';
+  CustodyStatus? _filterStatus;
+  DateTime? _fromDate;
+  DateTime? _toDate;
+  bool _sortByHighestCustody = false;
+  bool _sortByOverdue = false;
+
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _futureData = _service.fetchDriverCustodies();
+    _futureData.then((value) {
+      setState(() {
+        _drivers = value;
+      });
+    }).catchError((_) {});
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // Calculations
+  double get outstandingCustody => _drivers.fold(0.0, (p, d) => p + d.currentCustody);
+
+  int get driversWithIssuesCount => _drivers.where((d) => d.status == CustodyStatus.Pending || d.status == CustodyStatus.Overdue).length;
+
+  List<DriverCustody> get filteredDrivers {
+    var list = List<DriverCustody>.from(_drivers);
+    if (_search.isNotEmpty) {
+      list = list.where((d) => d.driverName.contains(_search)).toList();
+    }
+    if (_filterStatus != null) {
+      list = list.where((d) => d.status == _filterStatus).toList();
+    }
+    if (_fromDate != null) {
+      list = list.where((d) => d.lastSettlementDate.isAfter(_fromDate!.subtract(const Duration(days: 1)))).toList();
+    }
+    if (_toDate != null) {
+      list = list.where((d) => d.lastSettlementDate.isBefore(_toDate!.add(const Duration(days: 1)))).toList();
+    }
+    if (_sortByHighestCustody) {
+      list.sort((a, b) => b.currentCustody.compareTo(a.currentCustody));
+    }
+    if (_sortByOverdue) {
+      list.sort((a, b) => (b.status == CustodyStatus.Overdue ? 1 : 0).compareTo(a.status == CustodyStatus.Overdue ? 1 : 0));
+    }
+    return list;
+  }
+
+  void _resetFilters() {
+    setState(() {
+      _search = '';
+      _searchController.text = '';
+      _filterStatus = null;
+      _fromDate = null;
+      _toDate = null;
+      _sortByHighestCustody = false;
+      _sortByOverdue = false;
+    });
+  }
+
+  Future<void> _selectFromDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _fromDate ?? DateTime.now().subtract(const Duration(days: 30)),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) setState(() => _fromDate = picked);
+  }
+
+  Future<void> _selectToDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _toDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) setState(() => _toDate = picked);
+  }
+
+  void _reviewCustody() {
+    setState(() {
+      _filterStatus = CustodyStatus.Pending;
+      _sortByOverdue = true;
+    });
+  }
+
+  void _showDetails(DriverCustody d) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('تفاصيل الحجز المالي — ${d.driverName}'),
+        content: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. الرأس (Header)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'مرحباً بك، صالح! 👋',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'إليك ملخص أداء متجرك اليوم',
-                        style: TextStyle(color: Colors.grey[600], fontSize: 14),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'الأحد، 24 أكتوبر 2023',
-                        style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      _buildIconButton(Icons.notifications_outlined),
-                      const SizedBox(width: 12),
-                      Container(
-                        width: 45,
-                        height: 45,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            )
-                          ],
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            'https://i.pravatar.cc/150?img=11',
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.person, color: Colors.grey),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 30),
-
-              // 2. بطاقات الإحصائيات (Stats Cards)
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 4,
-                mainAxisSpacing: 20,
-                crossAxisSpacing: 20,
-                childAspectRatio: 1.6,
-                children: [
-                  _buildStatCard(
-                    'إجمالي الإيرادات',
-                    '\$45,231',
-                    '+20.1%',
-                    Icons.attach_money,
-                    const Color(0xFF6C5DD3),
-                    isUp: true,
-                  ),
-                  _buildStatCard(
-                    'إجمالي الطلبات',
-                    '3,456',
-                    '+15.2%',
-                    Icons.shopping_bag_outlined,
-                    const Color(0xFFFF7629),
-                    isUp: true,
-                  ),
-                  _buildStatCard(
-                    'إجمالي السائقين',
-                    '456',
-                    '-3.5%',
-                    Icons.directions_car_outlined,
-                    const Color(0xFF12B76A),
-                    isUp: false,
-                  ),
-                  _buildStatCard(
-                    'أرباح الشركة',
-                    '\$12,345',
-                    '+8.4%',
-                    Icons.account_balance_wallet_outlined,
-                    const Color(0xFF00C9A7),
-                    isUp: true,
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 30),
-
-              // 3. قسم التحليلات والحالة (Analytics & Status)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // المخطط البياني
-                  Expanded(
-                    flex: 2,
-                    child: _buildChartCard(),
-                  ),
-                  const SizedBox(width: 20),
-                  // حالة الطلبات
-                  Expanded(
-                    flex: 1,
-                    child: _buildStatusCard(),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 30),
-
-              // 4. جدول الطلبات الحديثة
-              _buildRecentOrdersTable(),
+              Text('إجمالي الطلبات: ${d.activeOrders}'),
+              const SizedBox(height: 8),
+              Text('قيمة الطلبات الإجمالية: ${d.totalOrdersValue.toStringAsFixed(2)}'),
+              const SizedBox(height: 8),
+              Text('إجمالي المقبوضات: ${d.collectedAmount.toStringAsFixed(2)}'),
+              const SizedBox(height: 8),
+              Text('المسلم للشركة: ${d.handedOverAmount.toStringAsFixed(2)}'),
+              const SizedBox(height: 8),
+              Text('الرصيد الحالي: ${d.currentCustody.toStringAsFixed(2)}'),
+              const SizedBox(height: 8),
+              Text('آخر تسوية: ${d.lastSettlementDate.toLocal().toString().split(' ').first}'),
+              const SizedBox(height: 12),
+              const Text('سجل التسويات السابقة', style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              if (d.settlements.isEmpty) const Text('لا توجد تسويات سابقة'),
+              for (var s in d.settlements)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(s.amount.toStringAsFixed(2)),
+                  subtitle: Text('${s.date.toLocal().toString().split(' ').first} — ${s.note}'),
+                ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  // --- Widgets Builders ---
-
-  Widget _buildIconButton(IconData icon) {
-    return Container(
-      width: 45,
-      height: 45,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      child: Icon(icon, color: Colors.grey[700]),
-    );
-  }
-
-  Widget _buildStatCard(String title, String value, String change, IconData icon, Color color, {required bool isUp}) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(title, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 20),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 5),
-          Row(
-            children: [
-              Icon(
-                isUp ? Icons.arrow_upward : Icons.arrow_downward,
-                size: 16,
-                color: isUp ? Colors.green : Colors.red,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                change,
-                style: TextStyle(
-                  color: isUp ? Colors.green : Colors.red,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text('vs الشهر الماضي', style: TextStyle(color: Colors.grey[400], fontSize: 10)),
-            ],
-          ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('إغلاق')),
         ],
       ),
     );
   }
 
-  Widget _buildChartCard() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('الإيرادات والطلبات', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 200,
-            child: BarChart(
-              BarChartData(
-                barTouchData: BarTouchData(enabled: false),
-                titlesData: FlTitlesData(
-                  show: true,
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        const days = ['سبت', 'أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة'];
-                        if (value.toInt() >= 0 && value.toInt() < days.length) {
-                          return Text(days[value.toInt()], style: const TextStyle(fontSize: 10, color: Colors.grey));
-                        }
-                        return const Text('');
-                      },
-                    ),
-                  ),
-                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                ),
-                gridData: FlGridData(show: false),
-                borderData: FlBorderData(show: false),
-                barGroups: [
-                  BarChartGroupData(x: 0, barRods: [BarChartRodData(toY: 40, color: const Color(0xFF6C5DD3), width: 12)]),
-                  BarChartGroupData(x: 1, barRods: [BarChartRodData(toY: 70, color: const Color(0xFF6C5DD3), width: 12)]),
-                  BarChartGroupData(x: 2, barRods: [BarChartRodData(toY: 50, color: const Color(0xFF6C5DD3), width: 12)]),
-                  BarChartGroupData(x: 3, barRods: [BarChartRodData(toY: 90, color: const Color(0xFF6C5DD3), width: 12)]),
-                  BarChartGroupData(x: 4, barRods: [BarChartRodData(toY: 60, color: const Color(0xFF6C5DD3), width: 12)]),
-                  BarChartGroupData(x: 5, barRods: [BarChartRodData(toY: 80, color: const Color(0xFF6C5DD3), width: 12)]),
-                  BarChartGroupData(x: 6, barRods: [BarChartRodData(toY: 100, color: const Color(0xFF6C5DD3), width: 12)]),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+  Widget _statusBadge(CustodyStatus status) {
+    switch (status) {
+      case CustodyStatus.Settled:
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(color: const Color(0xFF12B76A).withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
+          child: const Text('تم التسوية', style: TextStyle(color: Color(0xFF12B76A), fontWeight: FontWeight.bold)),
+        );
+      case CustodyStatus.Pending:
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(color: const Color(0xFFFFA726).withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
+          child: const Text('قيد الانتظار', style: TextStyle(color: Color(0xFFFFA726), fontWeight: FontWeight.bold)),
+        );
+      case CustodyStatus.Overdue:
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(color: const Color(0xFFFF5252).withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
+          child: const Text('متأخر', style: TextStyle(color: Color(0xFFFF5252), fontWeight: FontWeight.bold)),
+        );
+    }
   }
 
-  Widget _buildStatusCard() {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('حالة الطلبات', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 20),
-          _buildStatusItem('قيد التنفيذ', '24', const Color(0xFFFF7629)),
-          const SizedBox(height: 15),
-          _buildStatusItem('تم التوصيل', '456', const Color(0xFF12B76A)),
-          const SizedBox(height: 15),
-          _buildStatusItem('معلق', '12', Colors.grey),
-          const Spacer(),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {},
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF6C5DD3),
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('عرض كل الطلبات'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // UI builders for the section
+  Widget _buildCustodySummaryCards() {
+    final totalActive = _drivers.fold<double>(0.0, (p, d) => p + (d.currentCustody > 0 ? d.currentCustody : 0.0));
+    final totalCollected = _drivers.fold<double>(0.0, (p, d) => p + d.collectedAmount);
+    final totalHanded = _drivers.fold<double>(0.0, (p, d) => p + d.handedOverAmount);
+    final outstanding = outstandingCustody;
 
-  Widget _buildStatusItem(String title, String count, Color color) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final styleTitle = TextStyle(color: Colors.grey[600], fontSize: 13);
+
+    return GridView.count(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisCount: MediaQuery.of(context).size.width > 900 ? 4 : 2,
+      mainAxisSpacing: 16,
+      crossAxisSpacing: 16,
+      childAspectRatio: 3,
       children: [
-        Row(
-          children: [
-            Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-            const SizedBox(width: 10),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
-          ],
-        ),
-        Text(count, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        _custodyCard('إجمالي الحجز النشط', totalActive, styleTitle, const Color(0xFF6C5DD3)),
+        _custodyCard('إجمالي المقبوضات', totalCollected, styleTitle, const Color(0xFFFF7629)),
+        _custodyCard('إجمالي المسلم', totalHanded, styleTitle, const Color(0xFF00C9A7)),
+        _custodyCard('الرصيد المستحق', outstanding, styleTitle, const Color(0xFFFF5252)),
       ],
     );
   }
 
-  Widget _buildRecentOrdersTable() {
+  Widget _custodyCard(String title, double value, TextStyle titleStyle, Color color) {
     return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          )
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), boxShadow: [
+        BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 4))
+      ]),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('الطلبات الحديثة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              Row(
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: () {},
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('إضافة طلب جديد'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF6C5DD3),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
-                  ),
-                  const SizedBox(width: 15),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[100],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.search, color: Colors.grey[500], size: 18),
-                        const SizedBox(width: 8),
-                        SizedBox(
-                          width: 150,
-                          child: TextField(
-                            decoration: InputDecoration(
-                              hintText: 'بحث...',
-                              border: InputBorder.none,
-                              hintStyle: TextStyle(color: Colors.grey[500], fontSize: 13),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+              Text(title, style: titleStyle),
+              const SizedBox(height: 8),
+              Text('"); // placeholder', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             ],
           ),
-          const SizedBox(height: 20),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              headingRowColor: MaterialStateProperty.all(Colors.grey[50]),
-              columns: const [
-                DataColumn(label: Text('رقم الطلب')),
-                DataColumn(label: Text('التاريخ')),
-                DataColumn(label: Text('السائق')),
-                DataColumn(label: Text('المبلغ')),// تم التصحيح
-                DataColumn(label: Text('الحالة')),
-                DataColumn(label: Text('الإجراءات')),
-              ],
-              rows: List.generate(5, (index) {
-                return DataRow(cells: [
-                  DataCell(Text('#SKTG${2340 + index}')),
-                  DataCell(Text('24 أكتوبر 2023')),
-                  DataCell(Row(children: [
-                    CircleAvatar(radius: 12, backgroundImage: NetworkImage('https://i.pravatar.cc/150?img=${index + 5}')),
-                    const SizedBox(width: 8),
-                    const Text('أحمد محمد'),
-                  ])),
-                  DataCell(Text('\$${(120 + index * 10).toString()}')),
-                  DataCell(Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: index % 2 == 0 ? const Color(0xFF12B76A).withOpacity(0.1) : const Color(0xFFFF7629).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      index % 2 == 0 ? 'مكتمل' : 'قيد التنفيذ',
-                      style: TextStyle(
-                        color: index % 2 == 0 ? const Color(0xFF12B76A) : const Color(0xFFFF7629),
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  )),
-                  DataCell(IconButton(icon: const Icon(Icons.more_horiz), onPressed: () {})),
-                ]);
-              }),
-            ),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+            child: Icon(Icons.account_balance_wallet_rounded, color: color),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFilters() {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _searchController,
+            decoration: InputDecoration(hintText: 'بحث عن سائق...', prefixIcon: const Icon(Icons.search), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+            onChanged: (v) => setState(() {
+              _search = v;
+            }),
+          ),
+        ),
+        const SizedBox(width: 12),
+        DropdownButton<CustodyStatus?>(
+          value: _filterStatus,
+          hint: const Text('حالة'),
+          items: [
+            const DropdownMenuItem(value: null, child: Text('الكل')),
+            DropdownMenuItem(value: CustodyStatus.Settled, child: const Text('تم التسوية')),
+            DropdownMenuItem(value: CustodyStatus.Pending, child: const Text('قيد الانتظار')),
+            DropdownMenuItem(value: CustodyStatus.Overdue, child: const Text('متأخر')),
+          ],
+          onChanged: (v) => setState(() => _filterStatus = v),
+        ),
+        const SizedBox(width: 12),
+        OutlinedButton(onPressed: _selectFromDate, child: Text(_fromDate == null ? 'من' : _fromDate!.toLocal().toString().split(' ').first)),
+        const SizedBox(width: 8),
+        OutlinedButton(onPressed: _selectToDate, child: Text(_toDate == null ? 'إلى' : _toDate!.toLocal().toString().split(' ').first)),
+        const SizedBox(width: 8),
+        IconButton(
+          onPressed: () => setState(() => _sortByHighestCustody = !_sortByHighestCustody),
+          icon: Icon(Icons.sort, color: _sortByHighestCustody ? Colors.blue : Colors.grey),
+          tooltip: 'فرز حسب أعلى رصيد',
+        ),
+        IconButton(
+          onPressed: () => setState(() => _sortByOverdue = !_sortByOverdue),
+          icon: Icon(Icons.warning, color: _sortByOverdue ? Colors.red : Colors.grey),
+          tooltip: 'فرز حسب المتأخرين',
+        ),
+        const SizedBox(width: 8),
+        OutlinedButton(onPressed: _resetFilters, child: const Text('إعادة')),
+      ],
+    );
+  }
+
+  Widget _buildDriverCustodyTable() {
+    final list = filteredDrivers;
+    if (list.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+        child: const Center(child: Text('لا توجد بيانات لعرضها')),
+      );
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: DataTable(
+        headingRowColor: MaterialStateProperty.all(Colors.grey[50]),
+        columns: const [
+          DataColumn(label: Text('السائق')),
+          DataColumn(label: Text('الطلبات النشطة')),
+          DataColumn(label: Text('قيمة الطلبات')),
+          DataColumn(label: Text('المقبوض')),
+          DataColumn(label: Text('المسلم')),
+          DataColumn(label: Text('الرصيد الحالي')),
+          DataColumn(label: Text('آخر تسوية')),
+          DataColumn(label: Text('الحالة')),
+          DataColumn(label: Text('الإجراءات')),
+        ],
+        rows: list.map((d) {
+          return DataRow(cells: [
+            DataCell(Text(d.driverName)),
+            DataCell(Text(d.activeOrders.toString())),
+            DataCell(Text(d.totalOrdersValue.toStringAsFixed(2))),
+            DataCell(Text(d.collectedAmount.toStringAsFixed(2))),
+            DataCell(Text(d.handedOverAmount.toStringAsFixed(2))),
+            DataCell(Text(d.currentCustody.toStringAsFixed(2))),
+            DataCell(Text(d.lastSettlementDate.toLocal().toString().split(' ').first)),
+            DataCell(_statusBadge(d.status)),
+            DataCell(Row(children: [IconButton(icon: const Icon(Icons.remove_red_eye), onPressed: () => _showDetails(d))])),
+          ]);
+        }).toList(),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF4F7FE),
+        body: FutureBuilder<List<DriverCustody>>(
+          future: _futureData,
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snap.hasError) {
+              return Center(child: Text('حدث خطأ أثناء جلب البيانات'));
+            }
+            // data loaded
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
+
+                  // Warning alert
+                  if (driversWithIssuesCount > 0)
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(8)),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('$driversWithIssuesCount سائق لديهم أرصدة مستحقة أو متأخرة', style: const TextStyle(color: Colors.black87)),
+                          ElevatedButton(onPressed: _reviewCustody, style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF7629)), child: const Text('مراجعة الحجز')),
+                        ],
+                      ),
+                    ),
+
+                  // Section title
+                  const Text('Driver Financial Custody', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+
+                  // Summary cards
+                  _buildCustodySummaryCards(),
+                  const SizedBox(height: 16),
+
+                  // Filters
+                  _buildFilters(),
+                  const SizedBox(height: 16),
+
+                  // Table title
+                  const Text('Driver Custody Overview', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+
+                  // Table
+                  _buildDriverCustodyTable(),
+
+                  const SizedBox(height: 24),
+
+                  // keep the recent orders table below as before
+                  const SizedBox(height: 30),
+                  // You can reuse the existing recent orders table if needed; kept out for safety.
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
