@@ -27,8 +27,7 @@ class ZajilApp extends StatelessWidget {
           child: child!,
         );
       },
-      home: const DashboardScreen(), // استدعاء شاشة الداشبورد
-      // أو لو كنت سميتها HomeScreen或其他名字，غيرها هنا
+      home: const LoginScreen(), // Start with login screen
     );
   }
 }
