@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-// تأكد من استدعاء ملف الشاشة الصحيح
-// لو اسم الملف screens.dart تأكد من الاسم
-import 'screens.dart'; 
+import 'screens.dart';
+import 'login_screen.dart';
 
 void main() {
   runApp(const ZajilApp());
