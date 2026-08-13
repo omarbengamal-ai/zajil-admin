@@ -10,19 +10,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _usernameController = TextEditingController();
-  final _passwordController = TextEditingController();
-  String _userInfo = '';
-
-  void _updateUserInfo(String value) {
-    setState(() {
-      if (value.isNotEmpty) {
-        _userInfo = 'مرحباً بك، $value!';
-      } else {
-        _userInfo = '';
-      }
-    });
-  }
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   @override
   void dispose() {
@@ -33,173 +22,166 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
     return Scaffold(
-      body: Container(
-        height: MediaQuery.of(context).size.height,
-        width: MediaQuery.of(context).size.width * 0.75,
-        color: const Color(0xFFE0B0FF), // Mauve color
-        child: Row(
-          children: [
-            // Left side - Logo
-            Expanded(
-              flex: 1,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    SizedBox(
-                      height: MediaQuery.of(context).size.height * 0.6,
-                      width: MediaQuery.of(context).size.width * 0.75 * 0.5,
-                      child: const ZajilLogo(),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            // Right side - Login Form with white background
-            Expanded(
-              flex: 1,
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                ),
-                padding: const EdgeInsets.all(40),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // User Info Label that shows when typing username
-                    if (_userInfo.isNotEmpty) ...[
-                      Text(
-                        _userInfo,
-                        style: const TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-                    // Username Label
-                    Text(
-                      'اسم المستخدم',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFFFFF),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                      child: TextField(
-                        controller: _usernameController,
-                        onChanged: _updateUserInfo,
-                        decoration: InputDecoration(
-                          hintText: 'أدخل اسم المستخدم',
-                          hintStyle: TextStyle(color: Colors.grey[400]),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          filled: true,
-                          fillColor: const Color(0xFFFFFFFF),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                        ),
-                        style: const TextStyle(
-                          color: Colors.black,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    // Password Label
-                    Text(
-                      'كلمة المرور',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.grey[700],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFFFFF),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                      child: TextField(
-                        controller: _passwordController,
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          hintText: 'أدخل كلمة المرور',
-                          hintStyle: TextStyle(color: Colors.grey[400]),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
-                          ),
-                          filled: true,
-                          fillColor: const Color(0xFFFFFFFF),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                        ),
-                        style: const TextStyle(
-                          color: Colors.black,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    // Login Button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const DashboardScreen(),
+      body: Center(
+        child: Container(
+          // width 75% of screen, height 100%
+          width: screenSize.width * 0.75,
+          height: screenSize.height,
+          color: const Color(0xFF6C5DD3), // Mauve background
+          child: LayoutBuilder(builder: (context, constraints) {
+            final containerWidth = constraints.maxWidth;
+            final containerHeight = constraints.maxHeight;
+
+            return Stack(
+              children: [
+                // Logo placed above the background
+                Positioned(
+                  top: containerHeight * 0.05,
+                  left: (containerWidth - (containerWidth * 0.5)) / 2,
+                  child: SizedBox(
+                    width: containerWidth * 0.5, // 50% width
+                    height: containerHeight * 0.6, // 60% height
+                    child: FittedBox(
+                      fit: BoxFit.contain,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Replace with your asset or network logo
+                          CircleAvatar(
+                            radius: 60,
+                            backgroundColor: Colors.white,
+                            child: ClipOval(
+                              child: Image.network(
+                                'https://i.pravatar.cc/300?img=47',
+                                width: 120,
+                                height: 120,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(Icons.local_shipping, size: 64, color: Colors.grey),
+                              ),
                             ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF6C5DD3),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
                           ),
-                        ),
-                        child: const Text(
-                          'تسجيل الدخول',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                          const SizedBox(height: 12),
+                          const Text(
+                            'Zajil',
+                            style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
                           ),
-                        ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-          ],
+
+                // Right side: username & password labels/fields
+                Positioned(
+                  right: containerWidth * 0.06,
+                  top: containerHeight * 0.25,
+                  child: SizedBox(
+                    width: containerWidth * 0.35,
+                    // height: containerHeight * 0.4,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        // label that reflects username input
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              // The label text: shows entered username; invisible when empty
+                              Text(
+                                _usernameController.text.isEmpty ? 'اسم المستخدم' : _usernameController.text,
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  color: _usernameController.text.isEmpty ? const Color(0x00000000) : Colors.black, // transparent when empty (#0000), black when typed
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              // actual input field (keeps white background)
+                              TextField(
+                                controller: _usernameController,
+                                textAlign: TextAlign.right,
+                                decoration: const InputDecoration(
+                                  hintText: 'ادخل اسم المستخدم',
+                                  border: InputBorder.none,
+                                ),
+                                onChanged: (v) {
+                                  setState(() {}); // update label
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              const Text(
+                                'كلمة المرور',
+                                textAlign: TextAlign.right,
+                                style: TextStyle(color: Color(0xFF000000), fontSize: 14),
+                              ),
+                              const SizedBox(height: 8),
+                              TextField(
+                                controller: _passwordController,
+                                obscureText: true,
+                                textAlign: TextAlign.right,
+                                decoration: const InputDecoration(
+                                  hintText: 'ادخل كلمة المرور',
+                                  border: InputBorder.none,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        const SizedBox(height: 20),
+
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              // For now, just print values and navigate to dashboard
+                              if (_usernameController.text.isNotEmpty) {
+                                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const Center(child: Text('تم تسجيل الدخول'))));
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: Colors.black,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            child: const Text('تسجيل الدخول'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }),
         ),
       ),
     );
   }
 }
+
 
 import 'package:flutter/material.dart';
 
